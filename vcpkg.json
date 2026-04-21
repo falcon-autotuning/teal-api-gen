@@ -1,0 +1,8 @@
+{
+  "name": "teal-inst-api-generator",
+  "version": "1.0.0",
+  "dependencies": [
+    "nlohmann-json",
+    "gtest"
+  ]
+}
