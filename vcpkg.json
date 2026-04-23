@@ -1,6 +1,7 @@
 {
   "name": "inst-api-generator",
   "description": "Generator for teal library bindings",
+  "version": "1.0.0",
   "license": "MPL-2.0",
   "dependencies": [
     "yaml-cpp",
