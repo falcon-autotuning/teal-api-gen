@@ -1,0 +1,10 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(yaml-cpp CONFIG REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/teal-api-gen-targets.cmake")
+
+check_required_components(teal-api-gen)
+check_required_components(teal-api-gen-cli)

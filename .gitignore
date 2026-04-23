@@ -1,0 +1,7 @@
+.nuget-credentials
+my-vcpkg-triplets/
+build/
+vcpkg/
+vcpkg_installed/
+compile_commands.json
+
