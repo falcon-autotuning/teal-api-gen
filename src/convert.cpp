@@ -198,7 +198,7 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
   os << "-- Auto-generated Teal module from instrument YAML (vendor=" << vendor
      << " model=" << model << " id=" << identifier << ")\n\n";
   emit_helpers(os);
-  os << "local " << module_name << " = {}\n\n";
+  os << module_name << " = {}\n\n";
 
   // Gather channel_groups by name for lookup
   std::map<std::string, YAML::Node> channel_groups_by_name;
@@ -442,29 +442,36 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
         }
       }
 
-      // Build command id string
-      std::string cmd_id_expr;
-      if (uses_channel) {
-        cmd_id_expr = "id .. ':' .. tostring(" + channel_param_name +
-                      ") .. '." + cmd_key + "'";
-      } else {
-        cmd_id_expr = "id .. '." + cmd_key + "'";
-      }
+      // Build command id string - channel is passed as a named param in a table,
+      // not encoded in the command name, so the plugin receives it by name.
+      std::string cmd_id_expr = "id .. '." + cmd_key + "'";
 
-      // Build call args: parameters excluding id and channel
-      std::vector<std::string> call_args;
+      // Build named params table: channel first (using placeholder name as key),
+      // then remaining params.
+      std::vector<std::pair<std::string, std::string>> named_params;
+      if (uses_channel && !channel_param_name.empty() &&
+          !channel_placeholder_found.empty()) {
+        // Key = template placeholder (e.g. "analog"), value = Lua param name
+        named_params.push_back({channel_placeholder_found, channel_param_name});
+      }
       for (const auto &param_name : func_params) {
         if (param_name == "id" ||
             (uses_channel && param_name == channel_param_name)) {
           continue;
         }
-        call_args.push_back(param_name);
+        named_params.push_back({param_name, param_name});
       }
-      std::string call_args_sig = join(call_args, ", ");
 
-      if (!call_args_sig.empty()) {
-        os << "  return context:call(" << cmd_id_expr << ", " << call_args_sig
-           << ")\n";
+      if (!named_params.empty()) {
+        std::string table_entries;
+        for (size_t i = 0; i < named_params.size(); ++i) {
+          if (i > 0)
+            table_entries += ", ";
+          table_entries +=
+              named_params[i].first + " = " + named_params[i].second;
+        }
+        os << "  return context:call(" << cmd_id_expr << ", {" << table_entries
+           << "})\n";
       } else {
         os << "  return context:call(" << cmd_id_expr << ")\n";
       }
