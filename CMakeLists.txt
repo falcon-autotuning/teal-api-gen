@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
   teal-api-gen
-  VERSION 1.0.0
+  VERSION 1.0.2
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -46,13 +46,21 @@ add_library(teal-api-gen SHARED
   src/convert.cpp
 )
 
+include(GenerateExportHeader)
+set(GENERATED_INCLUDE_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}/include/teal-api-gen)
+file(MAKE_DIRECTORY ${GENERATED_INCLUDE_DIR})
+generate_export_header(teal-api-gen
+  EXPORT_FILE_NAME
+    ${GENERATED_INCLUDE_DIR}/teal-api-gen-export.h
+)
 target_include_directories(teal-api-gen
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:include>
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}/generated  # Add generated headers
 )
 
 target_link_libraries(teal-api-gen
@@ -82,6 +90,13 @@ target_link_libraries(teal-api-gen-cli PRIVATE teal-api-gen)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+install(DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES
+  ${GENERATED_INCLUDE_DIR}/teal-api-gen-export.h
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/teal-api-gen
+)
 install(TARGETS teal-api-gen
   EXPORT teal-api-gen-targets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -99,7 +114,6 @@ install(DIRECTORY include/teal-api-gen
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   FILES_MATCHING
     PATTERN "*.hpp"
-    PATTERN "*.h"
 )
 
 write_basic_package_version_file(
