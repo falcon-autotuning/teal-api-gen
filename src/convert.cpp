@@ -443,17 +443,12 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
         }
       }
 
-      // Build named params table: channel first (using placeholder name as key),
-      // then remaining params.
+      // Build named params table. Channel-group commands still require the
+      // channel parameter in the command payload; CallStack.channel carries the
+      // same value as target metadata for the gRPC API.
       std::vector<std::pair<std::string, std::string>> named_params;
-      if (uses_channel && !channel_param_name.empty() &&
-          !channel_placeholder_found.empty()) {
-        // Key = template placeholder (e.g. "analog"), value = Lua param name
-        named_params.push_back({channel_placeholder_found, channel_param_name});
-      }
       for (const auto &param_name : func_params) {
-        if (param_name == "id" ||
-            (uses_channel && param_name == channel_param_name)) {
+        if (param_name == "id") {
           continue;
         }
         named_params.push_back({param_name, param_name});
@@ -461,8 +456,11 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
 
       os << "  local cs = instrument_call_stack.new({\n"
          << "    instrument = id,\n"
-         << "    command = \"" << cmd_key << "\",\n"
-         << "  })\n";
+         << "    command = \"" << cmd_key << "\",\n";
+      if (uses_channel && !channel_param_name.empty()) {
+        os << "    channel = " << channel_param_name << ",\n";
+      }
+      os << "  })\n";
 
       if (!named_params.empty()) {
         std::string table_entries;
