@@ -47,6 +47,7 @@ std::string teal_type_from_schema(const std::string &t) {
 
 // Emit helpers (as in Lua)
 void emit_helpers(std::ostream &os) {
+  os << "global instrument_call_stack: any\n\n";
   os << "-- Helper numeric utilities for precision handling\n";
   os << "local function _log10(x: number): number\n"
         "  return math.log(x) / math.log(10)\n"
@@ -442,10 +443,6 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
         }
       }
 
-      // Build command id string - channel is passed as a named param in a table,
-      // not encoded in the command name, so the plugin receives it by name.
-      std::string cmd_id_expr = "id .. '." + cmd_key + "'";
-
       // Build named params table: channel first (using placeholder name as key),
       // then remaining params.
       std::vector<std::pair<std::string, std::string>> named_params;
@@ -462,6 +459,11 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
         named_params.push_back({param_name, param_name});
       }
 
+      os << "  local cs = instrument_call_stack.new({\n"
+         << "    instrument = id,\n"
+         << "    command = \"" << cmd_key << "\",\n"
+         << "  })\n";
+
       if (!named_params.empty()) {
         std::string table_entries;
         for (size_t i = 0; i < named_params.size(); ++i) {
@@ -470,10 +472,9 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
           table_entries +=
               named_params[i].first + " = " + named_params[i].second;
         }
-        os << "  return context:call(" << cmd_id_expr << ", {" << table_entries
-           << "})\n";
+        os << "  return context:call(cs, {" << table_entries << "})\n";
       } else {
-        os << "  return context:call(" << cmd_id_expr << ")\n";
+        os << "  return context:call(cs)\n";
       }
 
       os << "end\n\n";

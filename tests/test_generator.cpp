@@ -51,6 +51,12 @@ protected:
     mock_context = std::make_unique<MockLuaContext>();
     MockLuaContext::register_with_sol(*lua);
     (*lua)["context"] = mock_context.get();
+    sol::table instrument_call_stack = lua->create_table();
+    instrument_call_stack.set_function("new", [](sol::table spec) {
+      return spec.get_or("instrument", std::string{}) + "." +
+             spec.get_or("command", std::string{});
+    });
+    (*lua)["instrument_call_stack"] = instrument_call_stack;
   }
 
   void TearDown() override {
@@ -469,10 +475,11 @@ TEST_F(TealApiGenExecutionTest, ContextCallParameters) {
   // Verify we have at least one call
   ASSERT_GE(mock_context->calls.size(), 1)
       << "Expected at least one context:call";
-  // Check the command ID format
+  // Check the command ID format. Channel is passed as an argument, not encoded
+  // in the command target.
   const auto &call = mock_context->calls[0];
-  EXPECT_NE(call.command_id.find("myinst:2.SET_SAMPLE_RATE"), std::string::npos)
-      << "Command ID should be in format {id}:{channel}.COMMAND";
+  EXPECT_NE(call.command_id.find("myinst.SET_SAMPLE_RATE"), std::string::npos)
+      << "Command ID should be in format {id}.COMMAND";
   mock_context->print_calls();
 }
 
