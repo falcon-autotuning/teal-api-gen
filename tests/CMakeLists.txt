@@ -2,7 +2,7 @@ find_package(GTest REQUIRED)
 include(GoogleTest)
 
 find_package(sol2 CONFIG REQUIRED)
-find_package(lua CONFIG REQUIRED)
+find_package(unofficial-lua CONFIG REQUIRED)
 
 set(DLL_SEARCH_PATHS "${CMAKE_BINARY_DIR}}/tests" "${CMAKE_BINARY_DIR}")
 string(REPLACE ";" "\\;" TEST_PATH_ENV "${DLL_SEARCH_PATHS}")
@@ -15,7 +15,7 @@ add_executable(
 
 target_link_libraries(unit_tests PRIVATE teal-api-gen
                                          yaml-cpp::yaml-cpp
-                                         lua
+                                         unofficial::lua::lua
                                          sol2::sol2
                                          GTest::gtest
                                          GTest::gtest_main)

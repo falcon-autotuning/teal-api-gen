@@ -1,3 +1,4 @@
+#include "teal-api-gen/convert.hpp"
 #include <iostream>
 #include <string>
 #include <yaml-cpp/yaml.h>
