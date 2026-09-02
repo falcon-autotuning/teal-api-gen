@@ -238,8 +238,10 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
       if (!channel_group_name.empty() &&
           (channel_groups_by_name.count(channel_group_name) != 0U)) {
         const auto &cg = channel_groups_by_name[channel_group_name];
-        if (cg["channel_parameter"] && cg["channel_parameter"]["name"]) {
-          channel_param_name = get_str(cg["channel_parameter"], "name");
+        if (cg["channel_parameter"]) {
+          channel_param_name = cg["channel_parameter"]["name"]
+                                   ? get_str(cg["channel_parameter"], "name")
+                                   : channel_group_name;
           channel_param_def = cg["channel_parameter"];
         }
       }
@@ -463,7 +465,21 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
       }
       os << "  })\n";
 
-      if (!named_params.empty()) {
+      if (uses_channel) {
+        std::vector<std::string> positional_params;
+        for (const auto &param_name : func_params) {
+          if (param_name != "id" && param_name != channel_param_name) {
+            positional_params.push_back(param_name);
+          }
+        }
+
+        if (!positional_params.empty()) {
+          os << "  return context:call(cs, "
+             << join(positional_params, ", ") << ")\n";
+        } else {
+          os << "  return context:call(cs)\n";
+        }
+      } else if (!named_params.empty()) {
         std::string table_entries;
         for (size_t i = 0; i < named_params.size(); ++i) {
           if (i > 0)

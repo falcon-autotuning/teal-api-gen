@@ -480,6 +480,13 @@ TEST_F(TealApiGenExecutionTest, ContextCallParameters) {
   const auto &call = mock_context->calls[0];
   EXPECT_NE(call.command_id.find("myinst.SET_SAMPLE_RATE"), std::string::npos)
       << "Command ID should be in format {id}.COMMAND";
+
+  ASSERT_EQ(call.args.size(), 1U)
+      << "Channel metadata must not be duplicated in command parameters";
+  const auto args_it = call.args.find("0");
+  ASSERT_NE(args_it, call.args.end()) << "Expected sample_rate argument";
+  ASSERT_TRUE(args_it->second.is<double>());
+  EXPECT_EQ(args_it->second.as<double>(), 5000.0);
   mock_context->print_calls();
 }
 
