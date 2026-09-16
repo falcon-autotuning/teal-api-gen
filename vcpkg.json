@@ -1,7 +1,7 @@
 {
   "name": "teal-api-gen",
   "description": "Generator for teal library bindings",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "license": "MPL-2.0",
   "dependencies": [
     "yaml-cpp",
