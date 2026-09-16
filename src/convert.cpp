@@ -49,31 +49,6 @@ std::string teal_type_from_schema(const std::string &t) {
 // Emit helpers (as in Lua)
 void emit_helpers(std::ostream &os) {
   os << "global instrument_call_stack: any\n\n";
-  os << "-- Helper numeric utilities for precision handling\n";
-  os << "local function _log10(x: number): number\n"
-        "  return math.log(x) / math.log(10)\n"
-        "end\n\n";
-  os << "local function _round_to_sig(x: number, n: number): number\n"
-        "  if x == 0 then return 0 end\n"
-        "  local d = math.floor(_log10(math.abs(x)))\n"
-        "  local scale = 10 ^ (d - n + 1)\n"
-        "  return math.floor((x / scale) + 0.5) * scale\n"
-        "end\n\n";
-  os << "local function _round_to_multiple(x: number, step: number): number\n"
-        "  if step == 0 then return x end\n"
-        "  return math.floor((x / step) + 0.5) * step\n"
-        "end\n\n";
-  os << "local function _int_keep_significant(v: number, n: number): number\n"
-        "  if v == 0 then return 0 end\n"
-        "  local neg = v < 0\n"
-        "  local a = math.abs(v)\n"
-        "  local digits = math.floor(_log10(a)) + 1\n"
-        "  if digits <= n then return v end\n"
-        "  local factor = 10 ^ (digits - n)\n"
-        "  local res = math.floor((a / factor) + 0.5) * factor\n"
-        "  if neg then res = -res end\n"
-        "  return res\n"
-        "end\n\n";
 }
 // Helper: get string or empty
 std::string get_str(const YAML::Node &n, const char *key) {
@@ -90,102 +65,6 @@ std::string join(const std::vector<std::string> &vec, const std::string &sep) {
     oss << vec[i];
   }
   return oss.str();
-}
-void emit_clamp_block(std::ostream &os, const std::string &indent,
-                      const std::string &pname, const std::string &op,
-                      const std::string &bound,
-                      const std::string &log_from = "_old_", // or "_post_"
-                      const std::string &log_suffix = "") {
-  os << indent << "if " << pname << " " << op << " " << bound << " then\n"
-     << indent << "  " << pname << " = " << bound << "\n"
-     << indent << "  context:log(\"Clamped " << pname << log_suffix
-     << " from \" .. tostring(" << log_from << pname
-     << ") .. \" to \" .. tostring(" << pname << "))\n"
-     << indent << "end\n";
-}
-
-void emit_clamp_and_precision(std::ostream &os, const std::string &pname,
-                              const std::string &p_schema_type,
-                              const YAML::Node &pdef,
-                              const std::string &indent = "  ") {
-  bool has_min = pdef["min"].IsDefined();
-  bool has_max = pdef["max"].IsDefined();
-  bool has_prec = pdef["precision"].IsDefined();
-  if (!has_min && !has_max && !has_prec) {
-    return;
-  }
-
-  std::string pmin = has_min ? std::to_string(pdef["min"].as<double>()) : "";
-  std::string pmax = has_max ? std::to_string(pdef["max"].as<double>()) : "";
-  std::string prec =
-      has_prec ? std::to_string(pdef["precision"].as<double>()) : "";
-
-  os << indent << "local _old_" << pname << " = " << pname << "\n";
-  if (has_min) {
-    emit_clamp_block(os, indent, pname, "<", pmin);
-  }
-  if (has_max) {
-    emit_clamp_block(os, indent, pname, ">", pmax);
-  }
-
-  bool is_int_schema = (p_schema_type == "int");
-  if (is_int_schema) {
-    os << indent << pname << " = math.floor(" << pname << ")\n";
-  }
-  if (has_prec) {
-    bool prec_is_int =
-        (pdef["precision"].IsScalar() &&
-         pdef["precision"].as<double>() == (int)pdef["precision"].as<double>());
-    if (p_schema_type == "float") {
-      if (prec_is_int) {
-        os << indent << "local _pre_" << pname << " = " << pname << "\n"
-           << indent << pname << " = _round_to_sig(" << pname << ", " << prec
-           << ")\n"
-           << indent << "if " << pname << " ~= _pre_" << pname
-           << " then context:log(\"Applied significant-digit precision to "
-           << pname << ": \" .. tostring(_pre_" << pname
-           << ") .. \" -> \" .. tostring(" << pname << ")) end\n";
-      } else {
-        os << indent << "local _pre_" << pname << " = " << pname << "\n"
-           << indent << pname << " = _round_to_multiple(" << pname << ", "
-           << prec << ")\n"
-           << indent << "if " << pname << " ~= _pre_" << pname
-           << " then context:log(\"Rounded " << pname << " to nearest multiple "
-           << prec << ": \" .. tostring(_pre_" << pname
-           << ") .. \" -> \" .. tostring(" << pname << ")) end\n";
-      }
-    } else if (p_schema_type == "int") {
-      if (prec_is_int) {
-        os << indent << "local _pre_" << pname << " = " << pname << "\n"
-           << indent << pname << " = _int_keep_significant(" << pname << ", "
-           << prec << ")\n"
-           << indent << "if " << pname << " ~= _pre_" << pname
-           << " then context:log(\"Applied integer significant-digit precision "
-              "to "
-           << pname << ": \" .. tostring(_pre_" << pname
-           << ") .. \" -> \" .. tostring(" << pname << ")) end\n";
-      } else {
-        os << indent << "context:log(\"Warning: precision " << prec
-           << " for integer parameter " << pname
-           << " is fractional - ignoring precision\")\n";
-      }
-    } else {
-      os << indent << "context:log(\"Warning: precision specified for " << pname
-         << " but parameter type unknown - ignoring precision\")\n";
-    }
-    // Re-clamp after precision
-    if (has_min || has_max) {
-      os << indent << "local _post_" << pname << " = " << pname << "\n";
-      if (has_min) {
-        emit_clamp_block(os, indent, pname, "<", pmin, "_post_",
-                         " after precision");
-      }
-      if (has_max) {
-        emit_clamp_block(os, indent, pname, ">", pmax, "_post_",
-                         " after precision");
-      }
-    }
-  }
 }
 } // namespace
 namespace teal_api_gen {
@@ -428,24 +307,6 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
       os << "function " << module_name << ":" << func_name << "("
          << join(sig_parts, ", ") << "): " << return_sig << "\n";
 
-      // Emit clamping + precision for channel param if used
-      if (uses_channel && !channel_param_name.empty() && channel_param_def) {
-        emit_clamp_and_precision(os, channel_param_name,
-                                 get_str(channel_param_def, "type"),
-                                 channel_param_def);
-      }
-
-      // Emit clamping + precision for other params
-      if (cmd_def["parameters"]) {
-        for (const auto &p : cmd_def["parameters"]) {
-          std::string pname = p["name"] ? get_str(p, "name") : get_str(p, "io");
-          if (pname.empty() || (uses_channel && pname == channel_param_name)) {
-            continue;
-          }
-          emit_clamp_and_precision(os, pname, get_str(p, "type"), p);
-        }
-      }
-
       // Build named params table. Channel-group commands still require the
       // channel parameter in the command payload; CallStack.channel carries the
       // same value as target metadata for the gRPC API.
@@ -474,8 +335,8 @@ void convert_yml(const YAML::Node &instrument, std::ostream &os) {
         }
 
         if (!positional_params.empty()) {
-          os << "  return context:call(cs, "
-             << join(positional_params, ", ") << ")\n";
+          os << "  return context:call(cs, " << join(positional_params, ", ")
+             << ")\n";
         } else {
           os << "  return context:call(cs)\n";
         }
